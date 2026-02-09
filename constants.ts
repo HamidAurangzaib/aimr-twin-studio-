@@ -1,0 +1,251 @@
+
+export const OUTFIT_STYLES = [
+  "As in photo",
+  // --- Core Styles ---
+  "Casual Chic",
+  "Soft Girl",
+  "Luxury",
+  "Jet-Set Executive Jumpsuit (NEW)",
+  "Influencer Aesthetic",
+  "Gym Outfit",
+  "Work Outfit",
+  "Travel Fit",
+  "Designer Look",
+  "Lounge Wear",
+  "Business Professional",
+  "2-Piece Swimsuit",
+  "Mini Dress",
+  
+  // --- Sexy & Chic ---
+  "Night Out Bodycon Dress",
+  "Silk Slip Dress",
+  "Leather Mini Skirt & Top",
+  "Corset Top & Trousers",
+  "Chic Blazer Dress",
+  "Cut-out Jumpsuit",
+  "Sheer Blouse & Skirt",
+  "Feather Trim Mini Dress",
+  "Satin Cowl Neck Dress",
+  "Lace Bodysuit with Jeans",
+  "Vinyl/Latex Dress",
+  "Two-Piece Skirt & Top Set",
+  "Backless Halter Jumpsuit",
+  "Chainmail Crop Top",
+  "Sequin Bodycon Dress",
+  "Bodycon Mini Dress",
+  "Club Night",
+  "Preppy Schoolgirl (Plaid Skirt)",
+  "Matching Athleisure Set",
+  "Sheer Bodysuit & Tights",
+  "Liquid Metal Gown",
+  "Fuzzy Statement Jacket",
+
+  // --- Seasonal Styles ---
+  "Spring Blossom (Pastels, Florals)",
+  "Summer Beachwear",
+  "Cozy Autumn (Sweaters, Boots)",
+  "Winter Wonderland (Coats, Scarves)",
+
+  // --- Holiday & Themed Styles ---
+  "New Year's Eve Sparkle",
+  "Valentine's Day Glam",
+  "St. Patrick's Day Fun",
+  "Easter Pastel Chic",
+  "4th of July BBQ",
+  "Spooky Chic (Halloween)",
+  "Nightmare Before Christmas Inspired",
+  "Thanksgiving Dinner",
+  "Christmas Pajamas",
+  "Ugly Christmas Sweater",
+  "Glamorous Santa Baby Outfit",
+  "Grinch Themed",
+  "Jack Frost Inspired",
+
+  // --- Other Fun Styles ---
+  "Pool Day",
+  "Hello Kitty Inspired",
+  "Plaid Skirt Set",
+  "Designer Monogram",
+  "Faux Fur Coat",
+  "Funeral Attire (Respectful & Chic)",
+];
+
+export const LOCATIONS = [
+  // --- Everyday Norms & Errands ---
+  "Target Run",
+  "Sephora Haul", 
+  "Ulta Beauty Trip", 
+  "Gas Station Chic", 
+  "Grocery Store Run", 
+  "Bathroom Mirror Selfie", 
+  "Laundromat Waiting", 
+  "Fast Food Drive-Thru", 
+  "Convenience Store Snacks",
+  "Wawa Run",
+  "7-Eleven Late Night",
+  "Car Selfie (Luxury Interior)",
+  "Car Selfie (Convertible)",
+  
+  // --- Lifestyle & Aesthetic ---
+  "Studio Podcast",
+  "Home Podcast — Face Forward",
+  "Neon Home Podcast",
+  "Dark Podcast Studio (Looking Away)",
+  "Close-Up Profile Podcast",
+  "Cozy Living Room",
+  "Modern Office",
+  "Pilates Reformer Studio", 
+  "Green Juice Run", 
+  "Journaling in a Nook",
+  "Aesthetic Bubble Bath", 
+  "Cozy Skincare Routine", 
+  "Cozy Fireplace", 
+  "Walk-in Luxury Closet",
+  "Vanity / GRWM",
+  "Farmers Market",
+  "Morning Coffee Shop",
+  "Flower Shop",
+  "Bookstore / Library",
+  "Art Gallery",
+
+  // --- Out & About ---
+  "Park",
+  "Hiking Trail",
+  "Airport Travel / Lounge",
+  "Private Jet Interior",
+  "Rooftop Brunch",
+  "Luxury Restaurant",
+  "Candlelit Dinner",
+  "Hibachi Restaurant",
+  "Aquarium Tunnel",
+  "Parking Garage Photoshoot",
+  "City Street / Paparazzi Walk",
+  "Golden Hour Field",
+  "Beach Sunset",
+  "Poolside Cabana",
+  "Gym / Workout",
+  "Tennis Court",
+  "Golf Course",
+
+  // --- Events & Entertainment ---
+  "NBA Game",
+  "NFL Game",
+  "Concert / Festival",
+  
+  // --- Shopping Destinations ---
+  "Mall Walkway",
+  "Luxury Boutique (Chanel/Gucci)",
+  "Shoe Department",
+  "Fitting Room Selfie",
+  "Department Store Cosmetics Counter",
+  "New York City SoHo",
+  "Rodeo Drive",
+  
+  // --- Beauty Services ---
+  "Hair Salon (Shampoo Bowl)",
+  "Hair Salon (Styling Chair)",
+  "Nail Salon",
+  "Spa Massage Table",
+  "Lash Tech Bed",
+
+  // --- Holiday/Fun ---
+  "Christmas Tree Decorating",
+  "Baking Cookies",
+  "Ice Skating Rink",
+  "Christmas Market",
+  "Theme Park (Disney/Six Flags)",
+
+  // --- Geographic Locations ---
+  "New York, NY",
+  "Los Angeles, CA",
+  "Miami, FL",
+  "Chicago, IL",
+  "Las Vegas, NV",
+  "Houston, TX",
+  "Atlanta, GA",
+  "Paris, France",
+  "London, UK",
+  "Tokyo, Japan",
+  "Dubai, UAE",
+  "Santorini, Greece",
+  "Tulum, Mexico",
+  "Bali, Indonesia"
+];
+
+export const HAIRSTYLES = [ 
+    "As in photo", 
+    "Long Straight Hair (Middle Part)",
+    "Large Curly Afro",
+    "Sleek High Ponytail", 
+    "Long Wavy Curls", 
+    "Platinum Blonde Bob", 
+    "Vibrant Pink Wig", 
+    "Cornrow Braids", 
+    "Messy Top Knot Bun", 
+    "Straight with Bangs",
+    "Chic Pixie Cut",
+    "Mermaid Waves",
+    "Half-Up Half-Down",
+    "Trendy Space Buns",
+    "Bubble Braids",
+    "Low Bun with Face-Framing Pieces",
+    "Curtain Bangs with Layers",
+    "Edgy Wolf Cut",
+    "Hollywood Glam Waves",
+    "Butterfly Locs"
+];
+
+export const MAKEUP_LOOKS = [
+    "As in photo",
+    "No Makeup Makeup (Clean Girl)",
+    "Soft Glam",
+    "Full Glam (Contoured)",
+    "Smokey Eye & Nude Lip",
+    "Classic Red Lip & Winged Liner",
+    "Fox Eye Look",
+    "Y2K Frosted & Glossy",
+    "Bronze Goddess",
+    "Euphoria Inspired (Glitter)",
+    "Berry Tones & Flushed Cheeks",
+    "Goth / Dark Liner"
+];
+
+export const CAMERA_ANGLES = [
+    "Standard Eye Level",
+    "Low Angle (Power Shot)",
+    "High Angle (Selfie Vibe)",
+    "Dutch Angle (Dynamic Tilt)",
+    "Over the Shoulder",
+    "Profile / Side View",
+    "Walking Towards Camera",
+    "Looking Back at Camera",
+    "Close-Up Portrait",
+    "Full Body Wide Shot",
+    "Candid from a Distance",
+    "Mirror Selfie (Phone Visible)"
+];
+
+export const SKIN_STYLES = [ "Natural & Realistic (with pores)", "Real Skin Lock (Ultra-Real, No Smoothing)", "Glossy & Dewy Finish", "Soft Matte Finish", "Sunkissed & Freckled", "Glamorous Flawless (Airbrushed)", "Ultra-Realistic (Natural, No Filters)", "Ultra-Real Skin Lock" ];
+
+export const HEIGHT_OPTIONS = ["As in photo", "5'0\"", "5'2\"", "5'4\"", "5'6\"", "5'8\"", "5'10\"", "6'0\""];
+export const BUST_SIZES = ["As in photo", "32A", "32B", "34B", "34C", "36C", "36D", "38D", "38DD"];
+export const WAIST_SIZES = ["As in photo", "24 inches", "26 inches", "28 inches", "30 inches", "32 inches"];
+export const HIPS_SIZES = ["As in photo", "34 inches", "36 inches", "38 inches", "40 inches", "42 inches", "44 inches"];
+export const ASPECT_RATIOS = ["As in photo", "1:1 (Square)", "9:16 (Portrait)", "16:9 (Landscape)", "4:3 (Standard)", "3:4 (Tall)"];
+
+export const MOODS = [
+  "Standard / Realistic",
+  "That Girl (Clean, Productive)",
+  "Rich Mom Energy (Expensive, Classy)",
+  "Baddie (Bold, Confident)",
+  "Y2K Aesthetic (Playful, Retro)",
+  "Old Money (Timeless, Elegant)",
+  "Dark Feminine (Mysterious, Seductive)",
+  "Coquette (Soft, Romantic, Pink)",
+  "Streetwear / Hypebeast",
+  "Professional / Boss Babe",
+  "Party / Nightlife",
+  "Vacation / Relaxed",
+  "Edgy / Grunge",
+  "Whimsical / Dreamy"
+];
