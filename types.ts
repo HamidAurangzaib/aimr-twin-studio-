@@ -14,6 +14,8 @@ export interface GenerationOptions {
   waist: string;
   hips: string;
   aspectRatio: string;
+  /** Called each time a single image finishes — enables progressive streaming UI */
+  onImageReady?: (image: GeneratedImage) => void;
 }
 
 export interface GeneratedImage {

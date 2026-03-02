@@ -143,9 +143,11 @@ const App: React.FC = () => {
     setLoading(true);
     setError(null);
 
+    let creditReserved = false;
+    let completedCount = 0;
+
     try {
       // PRE-CHECK: Call the Cloud Function to verify/increment count ON THE SERVER.
-      // STRICT ENFORCEMENT: No try/catch bypass. If this fails, the user cannot generate images.
       const checkUsage = httpsCallable(functions, 'checkAndIncrementUsage');
       const usageResult: any = await checkUsage({ count: options.numberOfImages });
 
@@ -153,16 +155,33 @@ const App: React.FC = () => {
         throw new Error("SERVER_REJECTED_USAGE");
       }
 
-      const results = await generateLifestyleImages(image, options);
+      creditReserved = true;
 
-      setGeneratedImages(prev => [...results, ...prev]);
-      // Update local state with the exact count from the server response
+      // Stream images into the gallery as each one finishes
+      const streamOptions = {
+        ...options,
+        onImageReady: (img: any) => {
+          completedCount++;
+          setGeneratedImages(prev => [img, ...prev]);
+          // Smooth scroll to gallery on first image
+          if (completedCount === 1) {
+            window.scrollTo({ top: window.innerHeight, behavior: 'smooth' });
+          }
+        },
+      };
+
+      await generateLifestyleImages(image, streamOptions);
+
+      // Update local credit count from server response
       setImagesUsedToday(DAILY_IMAGE_LIMIT - usageResult.data.remaining);
 
-      window.scrollTo({ top: window.innerHeight, behavior: 'smooth' });
     } catch (err: any) {
       // Handle the case where the API key is invalid or not found (404/403)
       if (err.message?.includes("Requested entity was not found")) {
+        if (creditReserved) {
+          const refundUsage = httpsCallable(functions, 'refundUsage');
+          await refundUsage({ count: options.numberOfImages }).catch(() => {});
+        }
         setHasApiKey(false);
         const aistudio = (window as any).aistudio;
         if (aistudio) {
@@ -175,8 +194,16 @@ const App: React.FC = () => {
 
       if (err.message?.includes("DAILY_IMAGE_LIMIT_REACHED") || err.code === 'resource-exhausted') {
         setError(`DAILY LIMIT REACHED (${DAILY_IMAGE_LIMIT}/day). Resets at midnight.`);
-        // Remove syncUsage call here
       } else {
+        // Generation failed — refund credits for images that didn't complete
+        if (creditReserved) {
+          const failedCount = options.numberOfImages - completedCount;
+          if (failedCount > 0) {
+            const refundUsage = httpsCallable(functions, 'refundUsage');
+            await refundUsage({ count: failedCount }).catch(() => {});
+            setImagesUsedToday(prev => Math.max(0, prev - failedCount));
+          }
+        }
         setError(err.message || "Studio encountered a server error. Check deployment.");
       }
     } finally {

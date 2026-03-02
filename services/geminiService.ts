@@ -14,7 +14,7 @@ const fileToGenerativePart = async (file: File): Promise<{ inlineData: { data: s
       binary += String.fromCharCode(bytes[i]);
     }
     const base64Data = btoa(binary);
-    
+
     return {
       inlineData: {
         data: base64Data,
@@ -57,11 +57,12 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
     return "1:1";
   };
 
-  const imageRequests = Array.from({ length: options.numberOfImages }).map(async (_, i) => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    
+  // Single shared client — no need to re-instantiate per image
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+  const makeRequest = async (i: number): Promise<GeneratedImage> => {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image', // Crucial: Flash is cost-optimized
+      model: 'gemini-2.5-flash-image',
       contents: {
         parts: [referencePart, { text: prompt }],
       },
@@ -77,7 +78,7 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
 
     let imageData = '';
     let mimeType = 'image/png';
-    
+
     for (const part of candidate.content.parts) {
       if (part.inlineData) {
         imageData = part.inlineData.data;
@@ -93,6 +94,14 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
       src: `data:${mimeType};base64,${imageData}`,
       prompt: `${options.scenePreset} | ${options.location}`,
     };
+  };
+
+  // Fire all requests in parallel, but stream each result into the UI
+  // the moment it finishes rather than waiting for the entire batch.
+  const imageRequests = Array.from({ length: options.numberOfImages }).map(async (_, i) => {
+    const result = await makeRequest(i);
+    if (options.onImageReady) options.onImageReady(result);
+    return result;
   });
 
   return Promise.all(imageRequests);
