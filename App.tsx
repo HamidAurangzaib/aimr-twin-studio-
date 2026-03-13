@@ -386,9 +386,9 @@ const App: React.FC = () => {
               <ImageGallery images={generatedImages} />
             </div>
           ) : (
-            <div className="mt-80 flex flex-col items-center justify-center text-center transition-all duration-1000">
-              <h3 className="text-9xl font-serif font-black uppercase tracking-tighter text-[#C4A67A]/80 select-none leading-none drop-shadow-[0_15px_60px_rgba(196,166,122,0.5)]">Manifest Identity</h3>
-              <p className="mt-12 text-[10px] font-black text-brand-muted uppercase tracking-[1em] opacity-40">Awaiting Generation</p>
+            <div className="mt-24 md:mt-80 flex flex-col items-center justify-center text-center transition-all duration-1000 px-4">
+              <h3 className="text-[clamp(3rem,18vw,9rem)] font-serif font-black uppercase tracking-tighter text-[#C4A67A]/80 select-none leading-none drop-shadow-[0_15px_60px_rgba(196,166,122,0.5)]">Manifest Identity</h3>
+              <p className="mt-8 md:mt-12 text-[10px] font-black text-brand-muted uppercase tracking-[1em] opacity-40">Awaiting Generation</p>
             </div>
           )}
         </div>

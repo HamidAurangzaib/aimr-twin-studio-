@@ -203,7 +203,7 @@ const Auth: React.FC = () => {
             )}
             {isRegistering && (
                <div className="group">
-                <label className="block text-[10px] font-black text-brand-muted mb-4 uppercase tracking-[0.5em]">CONFIRM TOKEN</label>
+                <label className="block text-[10px] font-black text-brand-muted mb-4 uppercase tracking-[0.5em]">CONFIRM PASSWORD</label>
                 <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required className="w-full p-6 bg-black/40 border border-white/5 rounded-2xl text-brand-text focus:outline-none focus:ring-1 focus:ring-brand-gold/40 transition-all font-light text-lg" />
               </div>
             )}
@@ -229,8 +229,8 @@ const Auth: React.FC = () => {
               {loading ? "ESTABLISHING..." : (isForgotPassword ? "RESET" : (isRegistering ? "REGISTER" : "ENTER"))}
             </button>
             
-            <div className="text-center pt-10 border-t border-white/5">
-               <button type="button" onClick={() => { if (isRegistering || isForgotPassword) { setIsRegistering(false); setIsForgotPassword(false); } else { setIsRegistering(true); } setResetSent(false); setError(null); }} className="text-white/20 hover:text-brand-gold text-[10px] font-black uppercase tracking-[0.6em] transition-colors">
+            <div className="text-center pt-8 border-t border-white/10">
+               <button type="button" onClick={() => { if (isRegistering || isForgotPassword) { setIsRegistering(false); setIsForgotPassword(false); } else { setIsRegistering(true); } setResetSent(false); setError(null); }} className={`font-black uppercase transition-colors ${isRegistering || isForgotPassword ? "text-white/30 hover:text-brand-gold text-[10px] tracking-[0.6em]" : "text-brand-gold/80 hover:text-brand-gold text-[13px] tracking-[0.3em] underline underline-offset-4 decoration-brand-gold/40 hover:decoration-brand-gold"}`}>
                   {isRegistering || isForgotPassword ? "RETURN TO LOGIN" : "NEW HERE? REGISTER YOUR TWIN"}
                </button>
             </div>
