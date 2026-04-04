@@ -1,14 +1,5 @@
 
 import React, { useState, useEffect } from 'react';
-// @ts-ignore
-import { signOut, onAuthStateChanged } from 'firebase/auth';
-// @ts-ignore
-import type { User } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-// @ts-ignore
-import { httpsCallable } from 'firebase/functions';
-import { auth, db, functions } from './lib/firebase';
-import { authReady } from './lib/auth';
 import { GenerationOptions, GeneratedImage } from './types';
 import {
   OUTFIT_STYLES,
@@ -41,18 +32,31 @@ import ImageUploader from './components/ImageUploader';
 import OptionSelector from './components/OptionSelector';
 import ImageGallery from './components/ImageGallery';
 import Loader from './components/Loader';
-import Auth from './components/Auth';
-import Profile from './components/Profile';
 
-const DAILY_IMAGE_LIMIT = 16;
+const DAILY_IMAGE_LIMIT = 4;
+const CHECKOUT_URL = 'https://aitwin.aimasteryrevolution.com/uk-checkout-page-5549';
+const STORAGE_KEY = 'aimr_demo_usage';
 
-// Removed redundant declare global for window.aistudio to fix TypeScript conflicts.
-// The environment provides AIStudio type globally via the project's type definitions.
+function getLocalUsage(): { count: number; date: string } {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return { count: 0, date: '' };
+}
+
+function setLocalUsage(count: number) {
+  const today = new Date().toISOString().split('T')[0];
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ count, date: today }));
+}
+
+function getTodayUsage(): number {
+  const today = new Date().toISOString().split('T')[0];
+  const usage = getLocalUsage();
+  return usage.date === today ? usage.count : 0;
+}
 
 const App: React.FC = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [initializing, setInitializing] = useState(true);
-  const [showProfile, setShowProfile] = useState(false);
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -78,11 +82,8 @@ const App: React.FC = () => {
     aspectRatio: ASPECT_RATIOS[0],
   });
 
-
-
   useEffect(() => {
     const init = async () => {
-      // Use type assertion to handle external aistudio object safely
       const aistudio = (window as any).aistudio;
       if (typeof window !== 'undefined' && aistudio) {
         const selected = await aistudio.hasSelectedApiKey();
@@ -90,30 +91,7 @@ const App: React.FC = () => {
       } else {
         setHasApiKey(true);
       }
-
-      const initialUser = await authReady;
-      setUser(initialUser);
-      if (initialUser) {
-        // Read-only usage check
-        const userRef = doc(db, 'users', initialUser.uid);
-        getDoc(userRef).then(snap => {
-          if (snap.exists() && snap.data().usageDate === new Date().toISOString().split('T')[0]) {
-            setImagesUsedToday(snap.data().imagesUsedToday || 0);
-          }
-        });
-      }
-      setInitializing(false);
-      onAuthStateChanged(auth, async (u: User | null) => {
-        setUser(u);
-        if (u) {
-          const userRef = doc(db, 'users', u.uid);
-          getDoc(userRef).then(snap => {
-            if (snap.exists() && snap.data().usageDate === new Date().toISOString().split('T')[0]) {
-              setImagesUsedToday(snap.data().imagesUsedToday || 0);
-            }
-          });
-        }
-      });
+      setImagesUsedToday(getTodayUsage());
     };
     init();
   }, []);
@@ -122,7 +100,6 @@ const App: React.FC = () => {
     const aistudio = (window as any).aistudio;
     if (aistudio) {
       await aistudio.openSelectKey();
-      // Assume successful selection to proceed (race condition mitigation)
       setHasApiKey(true);
     }
   };
@@ -140,30 +117,28 @@ const App: React.FC = () => {
       return;
     }
 
+    const currentUsage = getTodayUsage();
+    if (currentUsage + options.numberOfImages > DAILY_IMAGE_LIMIT) {
+      setError(`Demo limit reached (${DAILY_IMAGE_LIMIT} free images used). Click "Unlock Full Access" below to continue.`);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
-    let creditReserved = false;
     let completedCount = 0;
 
     try {
-      // PRE-CHECK: Call the Cloud Function to verify/increment count ON THE SERVER.
-      const checkUsage = httpsCallable(functions, 'checkAndIncrementUsage');
-      const usageResult: any = await checkUsage({ count: options.numberOfImages });
+      // Reserve credits locally before generation
+      const newUsage = currentUsage + options.numberOfImages;
+      setLocalUsage(newUsage);
+      setImagesUsedToday(newUsage);
 
-      if (!usageResult.data.success) {
-        throw new Error("SERVER_REJECTED_USAGE");
-      }
-
-      creditReserved = true;
-
-      // Stream images into the gallery as each one finishes
       const streamOptions = {
         ...options,
         onImageReady: (img: any) => {
           completedCount++;
           setGeneratedImages(prev => [img, ...prev]);
-          // Smooth scroll to gallery on first image
           if (completedCount === 1) {
             window.scrollTo({ top: window.innerHeight, behavior: 'smooth' });
           }
@@ -172,16 +147,8 @@ const App: React.FC = () => {
 
       await generateLifestyleImages(image, streamOptions);
 
-      // Update local credit count from server response
-      setImagesUsedToday(DAILY_IMAGE_LIMIT - usageResult.data.remaining);
-
     } catch (err: any) {
-      // Handle the case where the API key is invalid or not found (404/403)
       if (err.message?.includes("Requested entity was not found")) {
-        if (creditReserved) {
-          const refundUsage = httpsCallable(functions, 'refundUsage');
-          await refundUsage({ count: options.numberOfImages }).catch(() => {});
-        }
         setHasApiKey(false);
         const aistudio = (window as any).aistudio;
         if (aistudio) {
@@ -192,27 +159,19 @@ const App: React.FC = () => {
         return;
       }
 
-      if (err.message?.includes("DAILY_IMAGE_LIMIT_REACHED") || err.code === 'resource-exhausted') {
-        setError(`DAILY LIMIT REACHED (${DAILY_IMAGE_LIMIT}/day). Resets at midnight.`);
-      } else {
-        // Generation failed — refund credits for images that didn't complete
-        if (creditReserved) {
-          const failedCount = options.numberOfImages - completedCount;
-          if (failedCount > 0) {
-            const refundUsage = httpsCallable(functions, 'refundUsage');
-            await refundUsage({ count: failedCount }).catch(() => {});
-            setImagesUsedToday(prev => Math.max(0, prev - failedCount));
-          }
-        }
-        setError(err.message || "Studio encountered a server error. Check deployment.");
+      // Refund credits for images that didn't complete
+      const failedCount = options.numberOfImages - completedCount;
+      if (failedCount > 0) {
+        const refunded = Math.max(0, getTodayUsage() - failedCount);
+        setLocalUsage(refunded);
+        setImagesUsedToday(refunded);
       }
+
+      setError(err.message || "Studio encountered a server error. Check deployment.");
     } finally {
       setLoading(false);
     }
   };
-
-  if (initializing) return <Loader />;
-  if (!user) return <Auth />;
 
   if (!hasApiKey) {
     return (
@@ -247,22 +206,11 @@ const App: React.FC = () => {
       {loading && <Loader />}
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(196,166,122,0.15),transparent_75%)] pointer-events-none"></div>
 
-      {showProfile && <Profile user={user} onClose={() => setShowProfile(false)} />}
-
       <nav className="sticky top-0 z-40 w-full bg-[#0a0a0a]/95 backdrop-blur-3xl border-b border-white/5 py-6 px-6 md:px-12">
         <div className="max-w-screen-2xl mx-auto flex justify-between items-center">
           <Header />
-          <div className="flex items-center gap-10">
-            <button onClick={() => setShowProfile(true)} className="group flex items-center gap-4">
-              <div className="w-11 h-11 rounded-full bg-[#C4A67A]/10 border border-[#C4A67A]/30 flex items-center justify-center shadow-lg group-hover:border-[#C4A67A]/60 transition-all">
-                <span className="text-[#C4A67A] font-bold text-xs">{user?.displayName?.charAt(0) || user?.email?.charAt(0).toUpperCase() || 'U'}</span>
-              </div>
-              <div className="hidden md:flex flex-col items-start">
-                <span className="text-[10px] font-black text-white uppercase tracking-[0.3em]">Studio Profile</span>
-                <span className="text-[9px] font-bold text-[#C4A67A] uppercase tracking-[0.1em]">{remainingCredits} Credits left</span>
-              </div>
-            </button>
-            <button onClick={() => signOut(auth)} className="text-[10px] font-black text-brand-muted uppercase tracking-[0.4em] hover:text-red-400 transition-colors">Sign Out</button>
+          <div className="flex items-center gap-6">
+            <span className="text-[10px] font-black text-[#C4A67A] uppercase tracking-[0.3em]">{remainingCredits} Free Images left</span>
           </div>
         </div>
       </nav>
@@ -354,8 +302,8 @@ const App: React.FC = () => {
 
             <div className="flex flex-col items-center pt-28">
               <div className="flex items-center gap-3 mb-14">
-                <span className="text-[10px] font-black uppercase tracking-[0.6em] text-white/50">Studio Credit Usage:</span>
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[#C4A67A]">{imagesUsedToday} / {DAILY_IMAGE_LIMIT} CREDITS</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.6em] text-white/50">Demo Credits Used:</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[#C4A67A]">{imagesUsedToday} / {DAILY_IMAGE_LIMIT} FREE IMAGES</span>
               </div>
 
               {error && (
@@ -364,17 +312,36 @@ const App: React.FC = () => {
                 </div>
               )}
 
-              <button
-                onClick={handleGenerate}
-                disabled={loading || !image || remainingCredits === 0}
-                className="relative w-full max-w-md py-12 bg-[#C4A67A] text-brand-charcoal font-black rounded-full hover:scale-[1.05] active:scale-[0.98] transition-all duration-500 shadow-[0_40px_110px_rgba(196,166,122,0.8)] uppercase tracking-[1.4em] text-[20px] disabled:opacity-50 disabled:cursor-not-allowed group overflow-hidden border border-white/20"
-              >
-                <span className="relative z-10 drop-shadow-xl font-black">
-                  {loading ? "Manifesting..." : remainingCredits === 0 ? "Daily Limit" : "Render Twin"}
-                </span>
-                <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-30 transition-opacity"></div>
-                <div className="absolute top-0 -left-full w-full h-full bg-gradient-to-r from-transparent via-white/40 to-transparent group-hover:animate-[shimmer_2s_infinite] pointer-events-none"></div>
-              </button>
+              {remainingCredits === 0 ? (
+                <div className="flex flex-col items-center gap-8 w-full max-w-md">
+                  <div className="text-center space-y-4">
+                    <p className="text-[11px] font-black text-[#C4A67A] uppercase tracking-[0.6em]">Demo Limit Reached</p>
+                    <p className="text-[10px] font-bold text-white/40 uppercase tracking-[0.4em]">You've used all 4 free demo images. Unlock the full studio — 16 images per day — with a full membership.</p>
+                  </div>
+                  <a
+                    href={CHECKOUT_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="relative w-full text-center py-12 bg-[#C4A67A] text-brand-charcoal font-black rounded-full hover:scale-[1.05] active:scale-[0.98] transition-all duration-500 shadow-[0_40px_110px_rgba(196,166,122,0.8)] uppercase tracking-[0.6em] text-[14px] group overflow-hidden border border-white/20"
+                  >
+                    <span className="relative z-10 drop-shadow-xl font-black">Unlock Full Access</span>
+                    <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-30 transition-opacity"></div>
+                    <div className="absolute top-0 -left-full w-full h-full bg-gradient-to-r from-transparent via-white/40 to-transparent group-hover:animate-[shimmer_2s_infinite] pointer-events-none"></div>
+                  </a>
+                </div>
+              ) : (
+                <button
+                  onClick={handleGenerate}
+                  disabled={loading || !image}
+                  className="relative w-full max-w-md py-12 bg-[#C4A67A] text-brand-charcoal font-black rounded-full hover:scale-[1.05] active:scale-[0.98] transition-all duration-500 shadow-[0_40px_110px_rgba(196,166,122,0.8)] uppercase tracking-[1.4em] text-[20px] disabled:opacity-50 disabled:cursor-not-allowed group overflow-hidden border border-white/20"
+                >
+                  <span className="relative z-10 drop-shadow-xl font-black">
+                    {loading ? "Manifesting..." : "Render Twin"}
+                  </span>
+                  <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-30 transition-opacity"></div>
+                  <div className="absolute top-0 -left-full w-full h-full bg-gradient-to-r from-transparent via-white/40 to-transparent group-hover:animate-[shimmer_2s_infinite] pointer-events-none"></div>
+                </button>
+              )}
             </div>
           </section>
 
