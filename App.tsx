@@ -33,27 +33,20 @@ import OptionSelector from './components/OptionSelector';
 import ImageGallery from './components/ImageGallery';
 import Loader from './components/Loader';
 
-const DAILY_IMAGE_LIMIT = 4;
+const LIFETIME_IMAGE_LIMIT = 4;
 const CHECKOUT_URL = 'https://aitwin.aimasteryrevolution.com/uk-checkout-page-5549';
 const STORAGE_KEY = 'aimr_demo_usage';
 
-function getLocalUsage(): { count: number; date: string } {
+function getLifetimeUsage(): number {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return parseInt(raw, 10) || 0;
   } catch {}
-  return { count: 0, date: '' };
+  return 0;
 }
 
-function setLocalUsage(count: number) {
-  const today = new Date().toISOString().split('T')[0];
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ count, date: today }));
-}
-
-function getTodayUsage(): number {
-  const today = new Date().toISOString().split('T')[0];
-  const usage = getLocalUsage();
-  return usage.date === today ? usage.count : 0;
+function setLifetimeUsage(count: number) {
+  localStorage.setItem(STORAGE_KEY, String(count));
 }
 
 const App: React.FC = () => {
@@ -91,7 +84,7 @@ const App: React.FC = () => {
       } else {
         setHasApiKey(true);
       }
-      setImagesUsedToday(getTodayUsage());
+      setImagesUsedToday(getLifetimeUsage());
     };
     init();
   }, []);
@@ -117,9 +110,9 @@ const App: React.FC = () => {
       return;
     }
 
-    const currentUsage = getTodayUsage();
-    if (currentUsage + options.numberOfImages > DAILY_IMAGE_LIMIT) {
-      setError(`Demo limit reached (${DAILY_IMAGE_LIMIT} free images used). Click "Unlock Full Access" below to continue.`);
+    const currentUsage = getLifetimeUsage();
+    if (currentUsage + options.numberOfImages > LIFETIME_IMAGE_LIMIT) {
+      setError(`Demo limit reached (${LIFETIME_IMAGE_LIMIT} lifetime free images used). Click "Unlock Full Access" below to continue.`);
       return;
     }
 
@@ -131,7 +124,7 @@ const App: React.FC = () => {
     try {
       // Reserve credits locally before generation
       const newUsage = currentUsage + options.numberOfImages;
-      setLocalUsage(newUsage);
+      setLifetimeUsage(newUsage);
       setImagesUsedToday(newUsage);
 
       const streamOptions = {
@@ -162,8 +155,8 @@ const App: React.FC = () => {
       // Refund credits for images that didn't complete
       const failedCount = options.numberOfImages - completedCount;
       if (failedCount > 0) {
-        const refunded = Math.max(0, getTodayUsage() - failedCount);
-        setLocalUsage(refunded);
+        const refunded = Math.max(0, getLifetimeUsage() - failedCount);
+        setLifetimeUsage(refunded);
         setImagesUsedToday(refunded);
       }
 
@@ -199,7 +192,7 @@ const App: React.FC = () => {
     );
   }
 
-  const remainingCredits = Math.max(0, DAILY_IMAGE_LIMIT - imagesUsedToday);
+  const remainingCredits = Math.max(0, LIFETIME_IMAGE_LIMIT - imagesUsedToday);
 
   return (
     <div className="min-h-screen bg-brand-charcoal text-brand-text font-sans selection:bg-brand-gold selection:text-brand-charcoal">
@@ -303,7 +296,7 @@ const App: React.FC = () => {
             <div className="flex flex-col items-center pt-28">
               <div className="flex items-center gap-3 mb-14">
                 <span className="text-[10px] font-black uppercase tracking-[0.6em] text-white/50">Demo Credits Used:</span>
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[#C4A67A]">{imagesUsedToday} / {DAILY_IMAGE_LIMIT} FREE IMAGES</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[#C4A67A]">{imagesUsedToday} / {LIFETIME_IMAGE_LIMIT} FREE IMAGES</span>
               </div>
 
               {error && (
