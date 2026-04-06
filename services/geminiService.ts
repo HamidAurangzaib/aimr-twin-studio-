@@ -58,7 +58,7 @@ Style: High-end fashion magazine, realistic textures, cinematic lighting, 8k res
   };
 
   // Single shared client — no need to re-instantiate per image
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
   const makeRequest = async (i: number): Promise<GeneratedImage> => {
     const response = await ai.models.generateContent({
