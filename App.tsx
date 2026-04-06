@@ -1,5 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
+// @ts-ignore
+import { signOut, onAuthStateChanged } from 'firebase/auth';
+// @ts-ignore
+import type { User } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+// @ts-ignore
+import { httpsCallable } from 'firebase/functions';
+import { auth, db, functions } from './lib/firebase';
+import { authReady } from './lib/auth';
 import { GenerationOptions, GeneratedImage } from './types';
 import {
   OUTFIT_STYLES,
@@ -15,7 +24,6 @@ import {
   HIPS_SIZES,
   ASPECT_RATIOS
 } from './constants';
-import { generateLifestyleImages } from './services/geminiService';
 
 import Header, {
   VibeIcon,
@@ -32,31 +40,22 @@ import ImageUploader from './components/ImageUploader';
 import OptionSelector from './components/OptionSelector';
 import ImageGallery from './components/ImageGallery';
 import Loader from './components/Loader';
+import Auth from './components/Auth';
+import Profile from './components/Profile';
 
 const LIFETIME_IMAGE_LIMIT = 4;
 const CHECKOUT_URL = 'https://aitwin.aimasteryrevolution.com/uk-checkout-page-5549';
-const STORAGE_KEY = 'aimr_demo_usage';
-
-function getLifetimeUsage(): number {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return parseInt(raw, 10) || 0;
-  } catch {}
-  return 0;
-}
-
-function setLifetimeUsage(count: number) {
-  localStorage.setItem(STORAGE_KEY, String(count));
-}
 
 const App: React.FC = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [initializing, setInitializing] = useState(true);
+  const [showProfile, setShowProfile] = useState(false);
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [imagesUsedToday, setImagesUsedToday] = useState(0);
-  const [hasApiKey, setHasApiKey] = useState(false);
+  const [lifetimeUsed, setLifetimeUsed] = useState(0);
 
   const [options, setOptions] = useState<GenerationOptions>({
     outfit: OUTFIT_STYLES[0],
@@ -75,27 +74,36 @@ const App: React.FC = () => {
     aspectRatio: ASPECT_RATIOS[0],
   });
 
+  const loadUserUsage = async (uid: string) => {
+    try {
+      const userRef = doc(db, 'users', uid);
+      const snap = await getDoc(userRef);
+      if (snap.exists()) {
+        setLifetimeUsed(snap.data().lifetimeImagesUsed || 0);
+      }
+    } catch {}
+  };
+
   useEffect(() => {
     const init = async () => {
-      const aistudio = (window as any).aistudio;
-      if (typeof window !== 'undefined' && aistudio) {
-        const selected = await aistudio.hasSelectedApiKey();
-        setHasApiKey(selected);
-      } else {
-        setHasApiKey(true);
+      const initialUser = await authReady;
+      setUser(initialUser);
+      if (initialUser) {
+        await loadUserUsage(initialUser.uid);
       }
-      setImagesUsedToday(getLifetimeUsage());
+      setInitializing(false);
+
+      onAuthStateChanged(auth, async (u: User | null) => {
+        setUser(u);
+        if (u) {
+          await loadUserUsage(u.uid);
+        } else {
+          setLifetimeUsed(0);
+        }
+      });
     };
     init();
   }, []);
-
-  const handleSelectKey = async () => {
-    const aistudio = (window as any).aistudio;
-    if (aistudio) {
-      await aistudio.openSelectKey();
-      setHasApiKey(true);
-    }
-  };
 
   const handleImageUpload = (file: File) => {
     setImage(file);
@@ -110,100 +118,109 @@ const App: React.FC = () => {
       return;
     }
 
-    const currentUsage = getLifetimeUsage();
-    if (currentUsage + options.numberOfImages > LIFETIME_IMAGE_LIMIT) {
-      setError(`Demo limit reached (${LIFETIME_IMAGE_LIMIT} lifetime free images used). Click "Unlock Full Access" below to continue.`);
-      return;
-    }
-
     setLoading(true);
     setError(null);
 
+    let creditReserved = false;
     let completedCount = 0;
 
     try {
-      // Reserve credits locally before generation
-      const newUsage = currentUsage + options.numberOfImages;
-      setLifetimeUsage(newUsage);
-      setImagesUsedToday(newUsage);
+      // Reserve credits on the server (enforces per-user lifetime limit)
+      const checkUsage = httpsCallable(functions, 'checkAndIncrementUsageDemo');
+      const usageResult: any = await checkUsage({ count: options.numberOfImages });
 
-      const streamOptions = {
-        ...options,
-        onImageReady: (img: any) => {
-          completedCount++;
-          setGeneratedImages(prev => [img, ...prev]);
-          if (completedCount === 1) {
-            window.scrollTo({ top: window.innerHeight, behavior: 'smooth' });
-          }
-        },
-      };
+      if (!usageResult.data.success) {
+        throw new Error("SERVER_REJECTED_USAGE");
+      }
 
-      await generateLifestyleImages(image, streamOptions);
+      creditReserved = true;
+      setLifetimeUsed(usageResult.data.used);
+
+      // Convert image to base64 for the API route
+      const buffer = await image.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+      const imageData = btoa(binary);
+      const mimeType = image.type;
+
+      // Fire all image requests in parallel, stream each into gallery as it finishes
+      const imageRequests = Array.from({ length: options.numberOfImages }).map(async (_, i) => {
+        const res = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageData, mimeType, options }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: 'Server error' }));
+          throw new Error(err.error || `Request failed (${res.status})`);
+        }
+
+        const result = await res.json();
+        const img: GeneratedImage = {
+          id: `studio-${Date.now()}-${i}`,
+          src: `data:${result.mimeType};base64,${result.imageData}`,
+          prompt: `${options.scenePreset} | ${options.location}`,
+        };
+
+        completedCount++;
+        setGeneratedImages(prev => [img, ...prev]);
+        if (completedCount === 1) {
+          window.scrollTo({ top: window.innerHeight, behavior: 'smooth' });
+        }
+        return img;
+      });
+
+      await Promise.all(imageRequests);
 
     } catch (err: any) {
-      if (err.message?.includes("Requested entity was not found")) {
-        setHasApiKey(false);
-        const aistudio = (window as any).aistudio;
-        if (aistudio) {
-          await aistudio.openSelectKey();
-          setHasApiKey(true);
+      if (err.message?.includes("LIFETIME_IMAGE_LIMIT_REACHED") || err.code === 'resource-exhausted') {
+        setError(`Lifetime demo limit reached (${LIFETIME_IMAGE_LIMIT} free images). Click "Unlock Full Access" to continue.`);
+        setLifetimeUsed(LIFETIME_IMAGE_LIMIT);
+      } else {
+        // Refund credits for images that didn't complete
+        if (creditReserved) {
+          const failedCount = options.numberOfImages - completedCount;
+          if (failedCount > 0) {
+            const refundUsage = httpsCallable(functions, 'refundUsageDemo');
+            await refundUsage({ count: failedCount }).catch(() => {});
+            setLifetimeUsed(prev => Math.max(0, prev - failedCount));
+          }
         }
-        setLoading(false);
-        return;
+        setError(err.message || "Studio encountered a server error. Please try again.");
       }
-
-      // Refund credits for images that didn't complete
-      const failedCount = options.numberOfImages - completedCount;
-      if (failedCount > 0) {
-        const refunded = Math.max(0, getLifetimeUsage() - failedCount);
-        setLifetimeUsage(refunded);
-        setImagesUsedToday(refunded);
-      }
-
-      setError(err.message || "Studio encountered a server error. Check deployment.");
     } finally {
       setLoading(false);
     }
   };
 
-  if (!hasApiKey) {
-    return (
-      <div className="min-h-screen bg-brand-charcoal flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-24 h-24 mb-10 bg-brand-gold/10 rounded-full flex items-center justify-center border border-brand-gold/20 animate-pulse">
-          <svg className="w-12 h-12 text-brand-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-          </svg>
-        </div>
-        <h2 className="text-4xl font-serif font-black text-brand-gold mb-8 uppercase tracking-[0.2em]">Studio Key Required</h2>
-        <p className="text-brand-text/70 mb-12 max-w-md uppercase tracking-[0.2em] text-[10px] leading-loose">
-          To access the ultra-realistic rendering engine, you must select an API key from a paid project.
-          <br /><br />
-          <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="text-brand-gold font-bold underline hover:text-white transition-all">
-            Review Billing Documentation
-          </a>
-        </p>
-        <button
-          onClick={handleSelectKey}
-          className="px-16 py-8 bg-brand-gold text-brand-charcoal font-black rounded-full hover:scale-105 hover:bg-white transition-all uppercase tracking-[0.6em] text-[12px] shadow-[0_30px_90px_rgba(177,148,108,0.3)]"
-        >
-          Select Project Key
-        </button>
-      </div>
-    );
-  }
+  if (initializing) return <Loader />;
+  if (!user) return <Auth />;
 
-  const remainingCredits = Math.max(0, LIFETIME_IMAGE_LIMIT - imagesUsedToday);
+  const remainingCredits = Math.max(0, LIFETIME_IMAGE_LIMIT - lifetimeUsed);
 
   return (
     <div className="min-h-screen bg-brand-charcoal text-brand-text font-sans selection:bg-brand-gold selection:text-brand-charcoal">
       {loading && <Loader />}
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(196,166,122,0.15),transparent_75%)] pointer-events-none"></div>
 
+      {showProfile && <Profile user={user} onClose={() => setShowProfile(false)} />}
+
       <nav className="sticky top-0 z-40 w-full bg-[#0a0a0a]/95 backdrop-blur-3xl border-b border-white/5 py-6 px-6 md:px-12">
         <div className="max-w-screen-2xl mx-auto flex justify-between items-center">
           <Header />
-          <div className="flex items-center gap-6">
-            <span className="text-[10px] font-black text-[#C4A67A] uppercase tracking-[0.3em]">{remainingCredits} Free Images left</span>
+          <div className="flex items-center gap-10">
+            <button onClick={() => setShowProfile(true)} className="group flex items-center gap-4">
+              <div className="w-11 h-11 rounded-full bg-[#C4A67A]/10 border border-[#C4A67A]/30 flex items-center justify-center shadow-lg group-hover:border-[#C4A67A]/60 transition-all">
+                <span className="text-[#C4A67A] font-bold text-xs">{user?.displayName?.charAt(0) || user?.email?.charAt(0).toUpperCase() || 'U'}</span>
+              </div>
+              <div className="hidden md:flex flex-col items-start">
+                <span className="text-[10px] font-black text-white uppercase tracking-[0.3em]">Studio Profile</span>
+                <span className="text-[9px] font-bold text-[#C4A67A] uppercase tracking-[0.1em]">{remainingCredits} Free Images left</span>
+              </div>
+            </button>
+            <button onClick={() => signOut(auth)} className="text-[10px] font-black text-brand-muted uppercase tracking-[0.4em] hover:text-red-400 transition-colors">Sign Out</button>
           </div>
         </div>
       </nav>
@@ -296,7 +313,7 @@ const App: React.FC = () => {
             <div className="flex flex-col items-center pt-28">
               <div className="flex items-center gap-3 mb-14">
                 <span className="text-[10px] font-black uppercase tracking-[0.6em] text-white/50">Demo Credits Used:</span>
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[#C4A67A]">{imagesUsedToday} / {LIFETIME_IMAGE_LIMIT} FREE IMAGES</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[#C4A67A]">{lifetimeUsed} / {LIFETIME_IMAGE_LIMIT} FREE IMAGES</span>
               </div>
 
               {error && (
