@@ -17,13 +17,12 @@ import { getFirestore } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBFqaDpdrUZUDil2YmsdK-dGu_echBRSoE",
-  authDomain: "aimr-twin-studio.firebaseapp.com",
-  projectId: "aimr-twin-studio",
-  storageBucket: "aimr-twin-studio.firebasestorage.app",
-  messagingSenderId: "298990602880",
-  appId: "1:298990602880:web:a29a36febb7ff24c297465",
-  measurementId: "G-GYK4Q35MLR"
+  apiKey: "AIzaSyChOhFpbiLnRrqCiWeqoOUzi12At7qlrMU",
+  authDomain: "aimr-twin-studio-demo.firebaseapp.com",
+  projectId: "aimr-twin-studio-demo",
+  storageBucket: "aimr-twin-studio-demo.firebasestorage.app",
+  messagingSenderId: "569518834809",
+  appId: "1:569518834809:web:b9deb234818f7baaec00a8"
 };
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
