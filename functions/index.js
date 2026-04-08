@@ -1,9 +1,11 @@
 
 const functions = require('firebase-functions');
+const cors = require('cors');
 const admin = require('firebase-admin');
 admin.initializeApp();
 
 const LIFETIME_LIMIT = 4;
+const corsHandler = cors({ origin: true });
 
 /**
  * Validates and increments LIFETIME demo image usage for a specific user.
