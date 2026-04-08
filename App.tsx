@@ -5,9 +5,7 @@ import { signOut, onAuthStateChanged } from 'firebase/auth';
 // @ts-ignore
 import type { User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-// @ts-ignore
-import { httpsCallable } from 'firebase/functions';
-import { auth, db, functions } from './lib/firebase';
+import { auth, db } from './lib/firebase';
 import { authReady } from './lib/auth';
 import { GenerationOptions, GeneratedImage } from './types';
 import {
@@ -126,15 +124,28 @@ const App: React.FC = () => {
 
     try {
       // Reserve credits on the server (enforces per-user lifetime limit)
-      const checkUsage = httpsCallable(functions, 'checkAndIncrementUsageDemo');
-      const usageResult: any = await checkUsage({ count: options.numberOfImages });
+      const token = await user.getIdToken();
+      const checkRes = await fetch('https://us-central1-aimr-twin-studio-demo.cloudfunctions.net/checkAndIncrementUsageDemo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ count: options.numberOfImages }),
+      });
 
-      if (!usageResult.data.success) {
+      if (!checkRes.ok) {
+        const errData = await checkRes.json().catch(() => ({ error: 'Server error' }));
+        throw new Error(errData.error || 'Failed to reserve credits');
+      }
+
+      const usageResult = await checkRes.json();
+      if (!usageResult.success) {
         throw new Error("SERVER_REJECTED_USAGE");
       }
 
       creditReserved = true;
-      setLifetimeUsed(usageResult.data.used);
+      setLifetimeUsed(usageResult.used);
 
       // Convert image to base64 for the API route
       const buffer = await image.arrayBuffer();
@@ -183,9 +194,21 @@ const App: React.FC = () => {
         if (creditReserved) {
           const failedCount = options.numberOfImages - completedCount;
           if (failedCount > 0) {
-            const refundUsage = httpsCallable(functions, 'refundUsageDemo');
-            await refundUsage({ count: failedCount }).catch(() => {});
-            setLifetimeUsed(prev => Math.max(0, prev - failedCount));
+            try {
+              const token = await user.getIdToken();
+              const refundRes = await fetch('https://us-central1-aimr-twin-studio-demo.cloudfunctions.net/refundUsageDemo', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ count: failedCount }),
+              });
+              if (refundRes.ok) {
+                const refundData = await refundRes.json();
+                setLifetimeUsed(refundData.used);
+              }
+            } catch {}
           }
         }
         setError(err.message || "Studio encountered a server error. Please try again.");
