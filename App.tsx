@@ -397,7 +397,7 @@ const App: React.FC = () => {
       <footer className="mt-96 pb-40 border-t border-white/5 pt-40 px-12">
         <div className="max-w-screen-2xl mx-auto flex flex-col md:flex-row justify-between items-center gap-24">
           <div className="flex flex-col items-center md:items-start space-y-6">
-            <h4 className="text-lg font-black text-[#C4A67A] uppercase tracking-[0.8em]">AIMR Twin Studio™</h4>
+            <h4 className="text-lg font-black text-[#C4A67A] uppercase tracking-[0.8em]">TWINORA</h4>
             <p className="text-[11px] font-bold text-white/30 uppercase tracking-[0.6em]">Premium Digital Identity Architecture</p>
           </div>
           <p className="text-[10px] font-bold text-white/20 uppercase tracking-[0.7em] text-center md:text-right italic">

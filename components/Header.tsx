@@ -75,13 +75,7 @@ export const RatioIcon = ({ className }: { className?: string }) => (
 const Header: React.FC = () => {
   return (
     <div className="flex items-center gap-3">
-      <div className="p-1.5 bg-brand-gold/10 rounded-full border border-brand-gold/20">
-        <SparkleIcon className="h-4 w-4 text-brand-gold" />
-      </div>
-      <h1 className="text-xl md:text-2xl font-serif font-black tracking-tighter uppercase">
-        <span className="text-brand-white">AIMR </span>
-        <span className="text-brand-gold">TWIN STUDIO<sup>™</sup></span>
-      </h1>
+      <img src="/twinora-logo.png" alt="TWINORA" className="h-8 md:h-10 w-auto object-contain" />
     </div>
   );
 };

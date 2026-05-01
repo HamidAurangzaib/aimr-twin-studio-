@@ -50,7 +50,7 @@ const Auth: React.FC = () => {
     if (!userSnap.exists()) {
       await setDoc(userRef, {
         uid: user.uid,
-        name: displayName || user.displayName || 'AIMR User',
+        name: displayName || user.displayName || 'TWINORA User',
         email: user.email,
         photoFileName: '',
         createdAt: serverTimestamp(),
@@ -137,11 +137,8 @@ const Auth: React.FC = () => {
       </div>
 
       <div className="relative z-10 mb-8 flex flex-col items-center animate-hero-reveal">
-         <h1 className="text-5xl md:text-8xl font-serif font-black tracking-[-0.04em] leading-none mb-4">
-           <span className="text-white uppercase">AIMR </span>
-           <span className="text-brand-gold uppercase">TWIN STUDIO<sup>™</sup></span>
-         </h1>
-         
+         <img src="/twinora-logo.png" alt="TWINORA" className="h-16 md:h-24 w-auto object-contain mb-4" />
+
          <div className="flex items-center gap-6 w-full max-w-sm opacity-50 px-4 mb-8">
            <div className="h-[0.5px] flex-1 bg-brand-gold"></div>
            <span className="text-brand-gold text-[10px] font-bold uppercase tracking-[0.8em] whitespace-nowrap">FOR HER</span>
