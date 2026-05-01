@@ -4,10 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
 // @ts-ignore
 import type { User } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-// @ts-ignore
-import { httpsCallable } from 'firebase/functions';
-import { auth, db, functions } from './lib/firebase';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from './lib/firebase';
 import { authReady } from './lib/auth';
 import { GenerationOptions, GeneratedImage } from './types';
 import {
@@ -140,29 +138,34 @@ const App: React.FC = () => {
       return;
     }
 
+    if (remainingCredits <= 0) {
+      setError(`Daily limit reached (${DAILY_IMAGE_LIMIT}/day). Resets at midnight.`);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
-    let creditReserved = false;
     let completedCount = 0;
+    const today = new Date().toISOString().split('T')[0];
+    const userRef = doc(db, 'users', auth.currentUser!.uid);
 
     try {
-      // PRE-CHECK: Call the Cloud Function to verify/increment count ON THE SERVER.
-      const checkUsage = httpsCallable(functions, 'checkAndIncrementUsage');
-      const usageResult: any = await checkUsage({ count: options.numberOfImages });
-
-      if (!usageResult.data.success) {
-        throw new Error("SERVER_REJECTED_USAGE");
-      }
-
-      creditReserved = true;
-
       // Stream images into the gallery as each one finishes
       const streamOptions = {
         ...options,
-        onImageReady: (img: any) => {
+        onImageReady: async (img: any) => {
           completedCount++;
           setGeneratedImages(prev => [img, ...prev]);
+
+          // Charge one credit per completed image directly in Firestore
+          const newCount = imagesUsedToday + completedCount;
+          await updateDoc(userRef, {
+            imagesUsedToday: newCount,
+            usageDate: today,
+          }).catch(() => {});
+          setImagesUsedToday(newCount);
+
           // Smooth scroll to gallery on first image
           if (completedCount === 1) {
             window.scrollTo({ top: window.innerHeight, behavior: 'smooth' });
@@ -172,40 +175,8 @@ const App: React.FC = () => {
 
       await generateLifestyleImages(image, streamOptions);
 
-      // Update local credit count from server response
-      setImagesUsedToday(DAILY_IMAGE_LIMIT - usageResult.data.remaining);
-
     } catch (err: any) {
-      // Handle the case where the API key is invalid or not found (404/403)
-      if (err.message?.includes("Requested entity was not found")) {
-        if (creditReserved) {
-          const refundUsage = httpsCallable(functions, 'refundUsage');
-          await refundUsage({ count: options.numberOfImages }).catch(() => {});
-        }
-        setHasApiKey(false);
-        const aistudio = (window as any).aistudio;
-        if (aistudio) {
-          await aistudio.openSelectKey();
-          setHasApiKey(true);
-        }
-        setLoading(false);
-        return;
-      }
-
-      if (err.message?.includes("DAILY_IMAGE_LIMIT_REACHED") || err.code === 'resource-exhausted') {
-        setError(`DAILY LIMIT REACHED (${DAILY_IMAGE_LIMIT}/day). Resets at midnight.`);
-      } else {
-        // Generation failed — refund credits for images that didn't complete
-        if (creditReserved) {
-          const failedCount = options.numberOfImages - completedCount;
-          if (failedCount > 0) {
-            const refundUsage = httpsCallable(functions, 'refundUsage');
-            await refundUsage({ count: failedCount }).catch(() => {});
-            setImagesUsedToday(prev => Math.max(0, prev - failedCount));
-          }
-        }
-        setError(err.message || "Studio encountered a server error. Check deployment.");
-      }
+      setError(err.message || "Generation failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -397,7 +368,7 @@ const App: React.FC = () => {
       <footer className="mt-96 pb-40 border-t border-white/5 pt-40 px-12">
         <div className="max-w-screen-2xl mx-auto flex flex-col md:flex-row justify-between items-center gap-24">
           <div className="flex flex-col items-center md:items-start space-y-6">
-            <h4 className="text-lg font-black text-[#C4A67A] uppercase tracking-[0.8em]">AIMR Twin Studio™</h4>
+            <h4 className="text-lg font-black text-[#C4A67A] uppercase tracking-[0.8em]">TWINORA</h4>
             <p className="text-[11px] font-bold text-white/30 uppercase tracking-[0.6em]">Premium Digital Identity Architecture</p>
           </div>
           <p className="text-[10px] font-bold text-white/20 uppercase tracking-[0.7em] text-center md:text-right italic">

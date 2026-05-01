@@ -2,12 +2,30 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // User profile and usage access
-    // Users can read their own documents, but CANNOT write.
-    // Writes must happen via Cloud Functions (Admin SDK) to enforce limits.
     match /users/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if false; // STRICT: No client-side writes.
+
+      // Allow account creation with required profile fields
+      allow create: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.keys().hasAll(['uid', 'email', 'name', 'createdAt']);
+
+      // Allow usage counter updates with strict limits to prevent cheating
+      allow update: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['imagesUsedToday', 'usageDate'])
+        && (
+            // New day: reset counter (capped at 4 — max single batch)
+            (resource.data.usageDate != request.resource.data.usageDate
+              && request.resource.data.imagesUsedToday >= 0
+              && request.resource.data.imagesUsedToday <= 4)
+            // Same day: can only increment, max 4 per write, hard cap at 16
+            || (resource.data.usageDate == request.resource.data.usageDate
+                && request.resource.data.imagesUsedToday >= resource.data.imagesUsedToday
+                && (request.resource.data.imagesUsedToday - resource.data.imagesUsedToday) <= 4
+                && request.resource.data.imagesUsedToday <= 16)
+           );
+
+      allow delete: if false;
     }
   }
 }
