@@ -42,7 +42,7 @@ import Loader from './components/Loader';
 import Auth from './components/Auth';
 import Profile from './components/Profile';
 
-const DAILY_IMAGE_LIMIT = 16;
+const MONTHLY_IMAGE_LIMIT = 300;
 
 // Removed redundant declare global for window.aistudio to fix TypeScript conflicts.
 // The environment provides AIStudio type globally via the project's type definitions.
@@ -56,7 +56,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [imagesUsedToday, setImagesUsedToday] = useState(0);
+  const [imagesUsedThisMonth, setImagesUsedThisMonth] = useState(0);
   const [hasApiKey, setHasApiKey] = useState(false);
 
   const [options, setOptions] = useState<GenerationOptions>({
@@ -95,8 +95,9 @@ const App: React.FC = () => {
         // Read-only usage check
         const userRef = doc(db, 'users', initialUser.uid);
         getDoc(userRef).then(snap => {
-          if (snap.exists() && snap.data().usageDate === new Date().toISOString().split('T')[0]) {
-            setImagesUsedToday(snap.data().imagesUsedToday || 0);
+          const thisMonth = new Date().toISOString().slice(0, 7);
+          if (snap.exists() && snap.data().usageMonth === thisMonth) {
+            setImagesUsedThisMonth(snap.data().imagesUsedThisMonth || 0);
           }
         });
       }
@@ -106,8 +107,9 @@ const App: React.FC = () => {
         if (u) {
           const userRef = doc(db, 'users', u.uid);
           getDoc(userRef).then(snap => {
-            if (snap.exists() && snap.data().usageDate === new Date().toISOString().split('T')[0]) {
-              setImagesUsedToday(snap.data().imagesUsedToday || 0);
+            const thisMonth = new Date().toISOString().slice(0, 7);
+            if (snap.exists() && snap.data().usageMonth === thisMonth) {
+              setImagesUsedThisMonth(snap.data().imagesUsedThisMonth || 0);
             }
           });
         }
@@ -139,7 +141,7 @@ const App: React.FC = () => {
     }
 
     if (remainingCredits <= 0) {
-      setError(`Daily limit reached (${DAILY_IMAGE_LIMIT}/day). Resets at midnight.`);
+      setError(`Monthly limit reached (${MONTHLY_IMAGE_LIMIT}/month). Resets next month.`);
       return;
     }
 
@@ -147,7 +149,7 @@ const App: React.FC = () => {
     setError(null);
 
     let completedCount = 0;
-    const today = new Date().toISOString().split('T')[0];
+    const thisMonth = new Date().toISOString().slice(0, 7);
     const userRef = doc(db, 'users', auth.currentUser!.uid);
 
     try {
@@ -159,12 +161,12 @@ const App: React.FC = () => {
           setGeneratedImages(prev => [img, ...prev]);
 
           // Charge one credit per completed image directly in Firestore
-          const newCount = imagesUsedToday + completedCount;
+          const newCount = imagesUsedThisMonth + completedCount;
           await updateDoc(userRef, {
-            imagesUsedToday: newCount,
-            usageDate: today,
+            imagesUsedThisMonth: newCount,
+            usageMonth: thisMonth,
           }).catch(() => {});
-          setImagesUsedToday(newCount);
+          setImagesUsedThisMonth(newCount);
 
           // Smooth scroll to gallery on first image
           if (completedCount === 1) {
@@ -211,7 +213,7 @@ const App: React.FC = () => {
     );
   }
 
-  const remainingCredits = Math.max(0, DAILY_IMAGE_LIMIT - imagesUsedToday);
+  const remainingCredits = Math.max(0, MONTHLY_IMAGE_LIMIT - imagesUsedThisMonth);
 
   return (
     <div className="min-h-screen bg-brand-charcoal text-brand-text font-sans selection:bg-brand-gold selection:text-brand-charcoal">
@@ -230,7 +232,7 @@ const App: React.FC = () => {
               </div>
               <div className="hidden md:flex flex-col items-start">
                 <span className="text-[10px] font-black text-white uppercase tracking-[0.3em]">Studio Profile</span>
-                <span className="text-[9px] font-bold text-[#C4A67A] uppercase tracking-[0.1em]">{remainingCredits} Credits left</span>
+                <span className="text-[9px] font-bold text-[#C4A67A] uppercase tracking-[0.1em]">{remainingCredits} / {MONTHLY_IMAGE_LIMIT} Credits</span>
               </div>
             </button>
             <button onClick={() => signOut(auth)} className="text-[10px] font-black text-brand-muted uppercase tracking-[0.4em] hover:text-red-400 transition-colors">Sign Out</button>
@@ -326,7 +328,7 @@ const App: React.FC = () => {
             <div className="flex flex-col items-center pt-28">
               <div className="flex items-center gap-3 mb-14">
                 <span className="text-[10px] font-black uppercase tracking-[0.6em] text-white/50">Studio Credit Usage:</span>
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[#C4A67A]">{imagesUsedToday} / {DAILY_IMAGE_LIMIT} CREDITS</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[#C4A67A]">{imagesUsedThisMonth} / {MONTHLY_IMAGE_LIMIT} CREDITS</span>
               </div>
 
               {error && (

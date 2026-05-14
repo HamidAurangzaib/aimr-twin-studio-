@@ -12,17 +12,17 @@ service cloud.firestore {
       // Allow usage counter updates with strict limits to prevent cheating
       allow update: if request.auth != null && request.auth.uid == userId
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['imagesUsedToday', 'usageDate'])
+             .hasOnly(['imagesUsedThisMonth', 'usageMonth'])
         && (
-            // New day: reset counter (capped at 4 — max single batch)
-            (resource.data.usageDate != request.resource.data.usageDate
-              && request.resource.data.imagesUsedToday >= 0
-              && request.resource.data.imagesUsedToday <= 4)
-            // Same day: can only increment, max 4 per write, hard cap at 16
-            || (resource.data.usageDate == request.resource.data.usageDate
-                && request.resource.data.imagesUsedToday >= resource.data.imagesUsedToday
-                && (request.resource.data.imagesUsedToday - resource.data.imagesUsedToday) <= 4
-                && request.resource.data.imagesUsedToday <= 16)
+            // New month: reset counter (capped at 4 — max single batch)
+            (resource.data.usageMonth != request.resource.data.usageMonth
+              && request.resource.data.imagesUsedThisMonth >= 0
+              && request.resource.data.imagesUsedThisMonth <= 4)
+            // Same month: can only increment, max 4 per write, hard cap at 300
+            || (resource.data.usageMonth == request.resource.data.usageMonth
+                && request.resource.data.imagesUsedThisMonth >= resource.data.imagesUsedThisMonth
+                && (request.resource.data.imagesUsedThisMonth - resource.data.imagesUsedThisMonth) <= 4
+                && request.resource.data.imagesUsedThisMonth <= 300)
            );
 
       allow delete: if false;

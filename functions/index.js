@@ -4,54 +4,49 @@ const admin = require('firebase-admin');
 admin.initializeApp();
 
 /**
- * Validates and increments daily image usage for a specific user.
- * Limit: 16 images per calendar day.
+ * Validates and increments monthly image usage for a specific user.
+ * Limit: 300 images per calendar month.
  */
 exports.checkAndIncrementUsage = functions.https.onCall(async (data, context) => {
-  // Check authentication
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'User must be logged in to generate images.');
   }
 
+  const MONTHLY_LIMIT = 300;
   const uid = context.auth.uid;
   const count = data.count || 1;
-  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-  const usageRef = admin.firestore().collection('users').doc(uid); // Pointing to users doc
+  const thisMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+  const usageRef = admin.firestore().collection('users').doc(uid);
 
   try {
     return await admin.firestore().runTransaction(async (transaction) => {
       const doc = await transaction.get(usageRef);
       let currentUsage = 0;
-      let lastDate = "";
+      let lastMonth = "";
 
       if (doc.exists) {
         const usageData = doc.data();
-        currentUsage = usageData.imagesUsedToday || 0;
-        lastDate = usageData.usageDate || "";
+        currentUsage = usageData.imagesUsedThisMonth || 0;
+        lastMonth = usageData.usageMonth || "";
       }
 
-      // Automatically reset count if the day has changed
-      if (lastDate !== today) {
+      if (lastMonth !== thisMonth) {
         currentUsage = 0;
       }
 
-      // Check if request exceeds limit
-      if (currentUsage + count > 16) {
-        throw new functions.https.HttpsError('resource-exhausted', 'DAILY_IMAGE_LIMIT_REACHED');
+      if (currentUsage + count > MONTHLY_LIMIT) {
+        throw new functions.https.HttpsError('resource-exhausted', 'MONTHLY_IMAGE_LIMIT_REACHED');
       }
 
-      // Update the counter
       transaction.set(usageRef, {
-        usageDate: today,
-        imagesUsedToday: currentUsage + count
+        usageMonth: thisMonth,
+        imagesUsedThisMonth: currentUsage + count
       }, { merge: true });
 
-      return { success: true, remaining: 16 - (currentUsage + count) };
+      return { success: true, remaining: MONTHLY_LIMIT - (currentUsage + count) };
     });
   } catch (error) {
-    // Pass through HttpsErrors directly
     if (error instanceof functions.https.HttpsError) throw error;
-
     console.error('Usage tracking error:', error);
     throw new functions.https.HttpsError('internal', 'Internal server error tracking usage.');
   }
@@ -152,9 +147,10 @@ exports.refundUsage = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('unauthenticated', 'User must be logged in.');
   }
 
+  const MONTHLY_LIMIT = 300;
   const uid = context.auth.uid;
   const count = data.count || 1;
-  const today = new Date().toISOString().split('T')[0];
+  const thisMonth = new Date().toISOString().slice(0, 7);
   const usageRef = admin.firestore().collection('users').doc(uid);
 
   try {
@@ -164,15 +160,14 @@ exports.refundUsage = functions.https.onCall(async (data, context) => {
       if (!doc.exists) return { success: true };
 
       const usageData = doc.data();
-      // Only refund credits that were charged today
-      if (usageData.usageDate !== today) return { success: true };
+      if (usageData.usageMonth !== thisMonth) return { success: true };
 
-      const currentUsage = usageData.imagesUsedToday || 0;
+      const currentUsage = usageData.imagesUsedThisMonth || 0;
       const newUsage = Math.max(0, currentUsage - count);
 
-      transaction.set(usageRef, { imagesUsedToday: newUsage }, { merge: true });
+      transaction.set(usageRef, { imagesUsedThisMonth: newUsage }, { merge: true });
 
-      return { success: true, remaining: 16 - newUsage };
+      return { success: true, remaining: MONTHLY_LIMIT - newUsage };
     });
   } catch (error) {
     if (error instanceof functions.https.HttpsError) throw error;
