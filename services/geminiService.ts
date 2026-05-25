@@ -3,19 +3,59 @@ import { GenerationOptions, GeneratedImage } from '../types';
 import { auth } from '../lib/firebase';
 
 /**
- * Convert a File object to a base64 string + mime type for the API request.
+ * Loads a File, downscales it so its largest side is at most `maxDim` pixels,
+ * and re-encodes it as a compressed JPEG base64 string.
+ *
+ * Why: the serverless endpoint runs on Vercel, which caps request bodies at
+ * ~4.5 MB. Full-resolution phone/DSLR photos easily exceed that once base64
+ * encoded (it adds ~33%), causing 413 errors. A face reference doesn't need
+ * more than ~1280px, so shrinking keeps us well under the limit and also makes
+ * generation faster — with no visible quality loss for the model.
  */
-const fileToBase64 = async (file: File): Promise<{ data: string; mimeType: string }> => {
+const fileToResizedBase64 = async (
+  file: File,
+  maxDim = 1280,
+  quality = 0.85
+): Promise<{ data: string; mimeType: string }> => {
   try {
-    const buffer = await file.arrayBuffer();
-    const bytes = new Uint8Array(buffer);
-    let binary = '';
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
+    const dataUrl: string = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error('read-failed'));
+      reader.readAsDataURL(file);
+    });
+
+    const img: HTMLImageElement = await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error('decode-failed'));
+      image.src = dataUrl;
+    });
+
+    let { width, height } = img;
+    if (width > maxDim || height > maxDim) {
+      if (width >= height) {
+        height = Math.round((height * maxDim) / width);
+        width = maxDim;
+      } else {
+        width = Math.round((width * maxDim) / height);
+        height = maxDim;
+      }
     }
-    return { data: btoa(binary), mimeType: file.type };
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('no-canvas');
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const out = canvas.toDataURL('image/jpeg', quality);
+    const base64 = out.split(',')[1] || '';
+    if (!base64) throw new Error('encode-failed');
+    return { data: base64, mimeType: 'image/jpeg' };
   } catch {
-    throw new Error("Failed to process the source photo. Please try a different image.");
+    throw new Error('Failed to process the source photo. Please try a different image.');
   }
 };
 
@@ -25,7 +65,7 @@ const fileToBase64 = async (file: File): Promise<{ data: string; mimeType: strin
  * to the browser, so it cannot be scraped or flagged as "leaked".
  */
 export const generateLifestyleImages = async (file: File, options: GenerationOptions): Promise<GeneratedImage[]> => {
-  const { data: imageData, mimeType } = await fileToBase64(file);
+  const { data: imageData, mimeType } = await fileToResizedBase64(file);
 
   // Fresh Firebase ID token proves the caller is a logged-in user of this app.
   const idToken = (await auth.currentUser?.getIdToken()) || '';
