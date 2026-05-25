@@ -1,5 +1,6 @@
 
 import { GenerationOptions, GeneratedImage } from '../types';
+import { auth } from '../lib/firebase';
 
 const fileToBase64 = async (file: File): Promise<{ data: string; mimeType: string }> => {
   try {
@@ -18,10 +19,16 @@ const fileToBase64 = async (file: File): Promise<{ data: string; mimeType: strin
 export const generateLifestyleImages = async (file: File, options: GenerationOptions): Promise<GeneratedImage[]> => {
   const { data: imageData, mimeType } = await fileToBase64(file);
 
+  // Fresh Firebase ID token proves the caller is a logged-in user of this app.
+  const idToken = (await auth.currentUser?.getIdToken()) || '';
+
   const makeRequest = async (i: number): Promise<GeneratedImage> => {
     const res = await fetch('/api/generate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+      },
       body: JSON.stringify({ imageData, mimeType, options }),
     });
 
