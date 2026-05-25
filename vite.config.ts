@@ -10,10 +10,9 @@ export default defineConfig(({ mode }) => {
         host: '0.0.0.0',
       },
       plugins: [react()],
-      define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
-      },
+      // NOTE: The Gemini API key is intentionally NOT injected into the client
+      // bundle. It now lives only on the server (api/generate.js → Vercel env),
+      // so it can never be scraped from the browser or flagged as "leaked".
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
