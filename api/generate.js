@@ -67,11 +67,17 @@ export default async function handler(req, res) {
       "Black tailored executive jumpsuit with a sleek, structured silhouette. Long-sleeve black jumpsuit with a deep V neckline, fitted waist with a slim belt detail, and clean tapered legs.",
   };
 
+  const locationDirectives = {
+    "CEO Studio Business Shot":
+      "Professional CEO studio portrait. Confident entrepreneur seated on a luxury stool in a high-end photography studio. Tailored designer suit with open-collar shirt. Dark luxury backdrop with subtle texture. Strong executive presence. Looking directly into camera with confidence and authority. Soft cinematic studio lighting creating depth and dimension. Premium personal brand aesthetic. Corporate magazine cover quality. Wealthy founder energy. Sharp facial details. Natural skin texture. Luxury watch visible. DSLR photography, 85mm lens, shallow depth of field. Ultra realistic. Premium business portrait suitable for Forbes, Entrepreneur Magazine, keynote speaker profile, company website, LinkedIn banner, press features, and investor presentations. Captured in cinematic RAW DSLR format. No filters. Visible skin texture. Balanced professional lighting. Ultra high-end commercial photography.",
+  };
+
   const resolvedOutfit = outfitDirectives[options.outfit] || options.outfit;
+  const resolvedLocation = locationDirectives[options.location] || options.location;
 
   const prompt = `Editorial Lifestyle Shoot.
 Subject: Exact facial features, bone structure, and identity from the reference image.
-Scene: ${options.scenePreset} at ${options.location}.
+Scene: ${options.scenePreset} at ${resolvedLocation}.
 Outfit: ${resolvedOutfit}.
 Details: Hairstyle is ${options.hairstyle}, Makeup is ${options.makeup}, Skin is ${options.skin}.
 Physical: Height ${options.height}, Bust ${options.bust}, Waist ${options.waist}, Hips ${options.hips}.

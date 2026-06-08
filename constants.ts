@@ -72,9 +72,7 @@ export const OUTFIT_STYLES = [
 
 export const LOCATIONS = [
   // --- Everyday Norms & Errands ---
-  "Target Run",
-  "Sephora Haul", 
-  "Ulta Beauty Trip", 
+  "Ulta Beauty Trip",
   "Gas Station Chic", 
   "Grocery Store Run", 
   "Bathroom Mirror Selfie", 
@@ -86,6 +84,9 @@ export const LOCATIONS = [
   "Car Selfie (Luxury Interior)",
   "Car Selfie (Convertible)",
   
+  // --- Professional & Business ---
+  "CEO Studio Business Shot",
+
   // --- Lifestyle & Aesthetic ---
   "Studio Podcast",
   "Home Podcast — Face Forward",

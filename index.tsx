@@ -6,7 +6,7 @@ import Maintenance from './components/Maintenance';
 
 // Toggle this to true to take the site offline behind a maintenance page.
 // Set back to false and redeploy to restore normal access.
-const MAINTENANCE_MODE = true;
+const MAINTENANCE_MODE = false;
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

@@ -3,11 +3,12 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // User profile and usage access
-    // Users can read their own documents, but CANNOT write.
-    // Writes must happen via Cloud Functions (Admin SDK) to enforce limits.
+    // Users can read their own documents and write ONLY during account creation
+    // Writes are restricted to prevent manipulation of usage counters
     match /users/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if false; // STRICT: No client-side writes.
+      allow create: if request.auth != null && request.auth.uid == userId && request.resource.data.keys().hasAll(['uid', 'email', 'name', 'createdAt']);
+      allow update: if false; // Usage updates happen via Cloud Functions (Admin SDK)
     }
   }
 }

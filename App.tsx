@@ -159,7 +159,10 @@ const App: React.FC = () => {
       const imageRequests = Array.from({ length: options.numberOfImages }).map(async (_, i) => {
         const res = await fetch('/api/generate', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
           body: JSON.stringify({ imageData, mimeType, options }),
         });
 
