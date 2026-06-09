@@ -62,7 +62,11 @@ export const mapAuthError = (code: string): string => {
  */
 export const sendPasswordResetEmail = async (email: string) => {
   try {
-    await firebaseSendPasswordResetEmail(auth, email);
+    await firebaseSendPasswordResetEmail(auth, email, {
+      // After resetting, send the user back to the live demo app.
+      url: "https://aimr-twin-studio-demo.vercel.app",
+      handleCodeInApp: false,
+    });
     return { success: true };
   } catch (error: any) {
     console.group("Studio Auth: Password Reset Failure");

@@ -223,7 +223,7 @@ const Auth: React.FC = () => {
             )}
             
             {error && <p className="text-red-500 text-[11px] font-black uppercase text-center tracking-[0.3em]">{error}</p>}
-            {resetSent && <p className="text-brand-gold text-[11px] font-black uppercase text-center tracking-[0.3em]">Check your email for the password reset link.</p>}
+            {resetSent && <p className="text-brand-gold text-[11px] font-black uppercase text-center tracking-[0.3em] leading-relaxed">If this email is registered, a reset link is on its way. Check your inbox and spam folder, and be sure to use the email you signed up with.</p>}
             
             <button type="submit" disabled={loading} className="w-full py-8 bg-brand-gold text-black font-black rounded-3xl hover:bg-white transition-all duration-700 uppercase tracking-[0.8em] text-[12px] shadow-[0_20px_40px_rgba(177,148,108,0.2)]">
               {loading ? "ESTABLISHING..." : (isForgotPassword ? "RESET" : (isRegistering ? "REGISTER" : "ENTER"))}
