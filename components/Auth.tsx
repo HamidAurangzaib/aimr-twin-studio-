@@ -80,6 +80,10 @@ const Auth: React.FC = () => {
         if (userCredential.user && !userCredential.user.emailVerified) {
           setVerificationEmail(email);
           setShowVerification(true);
+        } else if (userCredential.user) {
+          // Ensure migrated/legacy users get a profile doc in this project.
+          // syncUserToFirestore is a no-op if the doc already exists.
+          await syncUserToFirestore(userCredential.user);
         }
       }
     } catch (err: any) {
