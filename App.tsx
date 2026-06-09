@@ -42,7 +42,7 @@ import Auth from './components/Auth';
 import Profile from './components/Profile';
 
 const LIFETIME_IMAGE_LIMIT = 4;
-const CHECKOUT_URL = 'https://aitwin.aimasteryrevolution.com/uk-checkout-page-5549';
+const CHECKOUT_URL = 'https://demo.twinora.ai/uk-checkout-page-5549';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
