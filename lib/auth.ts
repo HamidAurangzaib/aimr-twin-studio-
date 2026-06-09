@@ -44,6 +44,10 @@ export const mapAuthError = (code: string): string => {
       return "Password or email incorrect";
     case 'auth/user-not-found':
       return "Account not found";
+    case 'auth/weak-password':
+      return "Password is too weak. Use at least 6 characters.";
+    case 'auth/email-already-in-use':
+      return "An account with this email already exists.";
     case 'auth/too-many-requests':
       return "Too many attempts, try again later";
     case 'auth/network-request-failed':

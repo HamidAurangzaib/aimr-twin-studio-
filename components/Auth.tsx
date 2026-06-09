@@ -66,6 +66,7 @@ const Auth: React.FC = () => {
 
     try {
       if (isRegistering) {
+        if (password.length < 6) throw new Error("Password is too weak. Use at least 6 characters.");
         if (password !== confirmPassword) throw new Error("Passwords do not match");
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         if (userCredential.user) {
@@ -83,7 +84,9 @@ const Auth: React.FC = () => {
       }
     } catch (err: any) {
       console.error("Auth Error Trace:", err);
-      setError(mapAuthError(err.code));
+      // Firebase errors carry a `code`; our own validation throws a plain
+      // Error whose `message` we want to show directly.
+      setError(err.code ? mapAuthError(err.code) : (err.message || mapAuthError(err.code)));
     } finally {
       setLoading(false);
     }
