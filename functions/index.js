@@ -8,6 +8,49 @@ const LIFETIME_LIMIT = 4;
 const corsHandler = cors({ origin: true });
 
 /**
+ * Passwordless email-only login for the DEMO.
+ * Accepts an email, finds-or-creates that user, and returns a Firebase
+ * custom token the client exchanges via signInWithCustomToken().
+ *
+ * SECURITY: This intentionally has NO password and NO verification — it is a
+ * frictionless demo login, so anyone can sign in as any email. This is an
+ * accepted trade-off for the free demo (no sensitive data, only a 4-image
+ * counter). Do NOT reuse this pattern for the paid product.
+ */
+exports.demoEmailLogin = functions.https.onRequest((req, res) => {
+  corsHandler(req, res, async () => {
+    if (req.method !== 'POST') {
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
+
+    try {
+      const email = (req.body.email || '').trim().toLowerCase();
+      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+      if (!emailOk) {
+        return res.status(400).json({ error: 'Please enter a valid email address.' });
+      }
+
+      let userRecord;
+      try {
+        userRecord = await admin.auth().getUserByEmail(email);
+      } catch (e) {
+        if (e.code === 'auth/user-not-found') {
+          userRecord = await admin.auth().createUser({ email, emailVerified: true });
+        } else {
+          throw e;
+        }
+      }
+
+      const token = await admin.auth().createCustomToken(userRecord.uid);
+      return res.status(200).json({ token });
+    } catch (error) {
+      console.error('demoEmailLogin error:', error);
+      return res.status(500).json({ error: 'Login failed. Please try again.' });
+    }
+  });
+});
+
+/**
  * HTTP endpoint to check and increment LIFETIME demo image usage.
  * Enforces per-user lifetime limit of 4 images.
  */
