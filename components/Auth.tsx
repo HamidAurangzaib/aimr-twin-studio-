@@ -1,56 +1,33 @@
 
-import React, { useState, useEffect } from 'react';
-import { 
+import React, { useState } from 'react';
+import {
   // @ts-ignore
-  signInWithEmailAndPassword, 
-  // @ts-ignore
-  createUserWithEmailAndPassword,
-  // @ts-ignore
-  sendEmailVerification,
-  // @ts-ignore
-  signOut,
-  // @ts-ignore
-  onAuthStateChanged
+  signInWithCustomToken
 } from 'firebase/auth';
 // Fix: Import User as a type to resolve "no exported member" compiler errors
 // @ts-ignore
 import type { User } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
-import { mapAuthError, sendPasswordResetEmail } from '../lib/auth';
+
+// Passwordless email-only demo login. The frontend posts an email to this
+// Cloud Function, which finds-or-creates the user and returns a custom token
+// that we exchange for a session via signInWithCustomToken().
+const DEMO_LOGIN_URL =
+  'https://us-central1-aimr-twin-studio-demo.cloudfunctions.net/demoEmailLogin';
 
 const Auth: React.FC = () => {
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [isForgotPassword, setIsForgotPassword] = useState(false);
-  const [showVerification, setShowVerification] = useState(false);
-  const [resetSent, setResetSent] = useState(false);
-  
-  const [verificationEmail, setVerificationEmail] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [name, setName] = useState('');
-  
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser: User | null) => {
-      if (currentUser && !currentUser.emailVerified) {
-        setVerificationEmail(currentUser.email || '');
-        setShowVerification(true);
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const syncUserToFirestore = async (user: User, displayName?: string) => {
+  const syncUserToFirestore = async (user: User) => {
     const userRef = doc(db, 'users', user.uid);
     const userSnap = await getDoc(userRef);
     if (!userSnap.exists()) {
       await setDoc(userRef, {
         uid: user.uid,
-        name: displayName || user.displayName || 'TWINORA User',
+        name: user.displayName || 'TWINORA User',
         email: user.email,
         photoFileName: '',
         createdAt: serverTimestamp(),
@@ -59,85 +36,42 @@ const Auth: React.FC = () => {
     }
   };
 
-  const handleAuth = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
     try {
-      if (isRegistering) {
-        if (password.length < 6) throw new Error("Password is too weak. Use at least 6 characters.");
-        if (password !== confirmPassword) throw new Error("Passwords do not match");
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        if (userCredential.user) {
-          await syncUserToFirestore(userCredential.user, name);
-          await sendEmailVerification(userCredential.user);
-          setVerificationEmail(email);
-          setShowVerification(true);
-        }
-      } else {
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        if (userCredential.user && !userCredential.user.emailVerified) {
-          setVerificationEmail(email);
-          setShowVerification(true);
-        } else if (userCredential.user) {
-          // Ensure migrated/legacy users get a profile doc in this project.
-          // syncUserToFirestore is a no-op if the doc already exists.
-          await syncUserToFirestore(userCredential.user);
-        }
+      const res = await fetch(DEMO_LOGIN_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.token) {
+        throw new Error(data.error || 'Could not sign you in. Please try again.');
       }
+
+      const cred = await signInWithCustomToken(auth, data.token);
+      if (cred.user) {
+        // Ensure a profile doc exists (no-op if already present).
+        await syncUserToFirestore(cred.user);
+      }
+      // App.tsx's auth listener takes over from here and renders the studio.
     } catch (err: any) {
-      console.error("Auth Error Trace:", err);
-      // Firebase errors carry a `code`; our own validation throws a plain
-      // Error whose `message` we want to show directly.
-      setError(err.code ? mapAuthError(err.code) : (err.message || mapAuthError(err.code)));
+      console.error('Demo login error:', err);
+      setError(err.message || 'Could not sign you in. Please try again.');
     } finally {
       setLoading(false);
     }
   };
-
-  const handleForgotPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email) { setError("Enter email first."); return; }
-    setLoading(true);
-    setError(null);
-    try {
-      await sendPasswordResetEmail(email);
-      setResetSent(true);
-    } catch (err: any) {
-      setError(mapAuthError(err.code));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSignOutAndReset = async () => {
-    await signOut(auth);
-    setShowVerification(false);
-    setIsRegistering(false);
-    setIsForgotPassword(false);
-    setResetSent(false);
-    setError(null);
-  };
-
-  if (showVerification) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-6 text-white selection:bg-brand-gold">
-        <div className="max-w-md w-full p-16 bg-[#111] rounded-[4rem] border border-white/5 shadow-2xl text-center">
-          <h2 className="text-4xl font-serif font-black text-brand-gold mb-6 uppercase tracking-widest leading-tight">Verification</h2>
-          <p className="text-white/60 mb-12 text-base font-light leading-relaxed tracking-wide">A digital invitation has been dispatched to <span className="text-brand-gold font-bold">{verificationEmail}</span>. Please verify your identity.</p>
-          <button onClick={handleSignOutAndReset} className="w-full py-6 bg-brand-gold text-black font-black rounded-xl uppercase tracking-[0.6em] text-[11px] hover:bg-white transition-colors duration-500 shadow-lg">BACK TO ENTRY</button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="relative min-h-screen bg-black flex flex-col items-center justify-center p-6 overflow-hidden selection:bg-brand-gold selection:text-black">
       <div className="absolute inset-0 z-0">
-        <img 
-          src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=2400" 
-          alt="Editorial Face Background" 
+        <img
+          src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=2400"
+          alt="Editorial Face Background"
           className="w-full h-full object-cover grayscale brightness-[0.35] contrast-[1.15]"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/75"></div>
@@ -181,63 +115,36 @@ const Auth: React.FC = () => {
 
       <div className="relative z-10 w-full max-w-lg animate-hero-reveal mb-12" style={{animationDelay: '0.2s'}}>
         <div className="bg-[#0c0c0c]/80 backdrop-blur-3xl border border-white/10 p-16 rounded-[4.5rem] shadow-[0_60px_120px_rgba(0,0,0,0.9)]">
-          <h3 className="text-2xl font-serif font-black text-center text-brand-gold mb-16 uppercase tracking-[0.6em]">
-            {isForgotPassword ? "RECOVERY" : (isRegistering ? "ENROLLMENT" : "ACCESS")}
+          <h3 className="text-2xl font-serif font-black text-center text-brand-gold mb-6 uppercase tracking-[0.6em]">
+            ACCESS
           </h3>
-          
-          <form onSubmit={isForgotPassword ? handleForgotPassword : handleAuth} className="space-y-10">
-            {isRegistering && (
-              <div className="group">
-                <label className="block text-[10px] font-black text-brand-muted mb-4 uppercase tracking-[0.5em]">IDENTITY NAME</label>
-                <input type="text" value={name} onChange={e => setName(e.target.value)} required className="w-full p-6 bg-black/40 border border-white/5 rounded-2xl text-brand-text focus:outline-none focus:ring-1 focus:ring-brand-gold/40 transition-all font-light text-lg" />
-              </div>
-            )}
+          <p className="text-center text-white/40 text-[11px] font-bold uppercase tracking-[0.35em] mb-14 leading-relaxed">
+            Enter your email to step into the studio.
+          </p>
+
+          <form onSubmit={handleLogin} className="space-y-10">
             <div className="group">
               <label className="block text-[10px] font-black text-brand-muted mb-4 uppercase tracking-[0.5em]">STUDIO EMAIL</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="w-full p-6 bg-black/40 border border-white/5 rounded-2xl text-brand-text focus:outline-none focus:ring-1 focus:ring-brand-gold/40 transition-all font-light text-lg" />
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                required
+                autoFocus
+                placeholder="you@email.com"
+                className="w-full p-6 bg-black/40 border border-white/5 rounded-2xl text-brand-text focus:outline-none focus:ring-1 focus:ring-brand-gold/40 transition-all font-light text-lg"
+              />
             </div>
-            {!isForgotPassword && (
-              <div className="group">
-                <div className="flex justify-between items-center mb-4">
-                  <label className="block text-[10px] font-black text-brand-muted uppercase tracking-[0.5em]">PASSWORD</label>
-                  {!isRegistering && <button type="button" onClick={() => setIsForgotPassword(true)} className="text-brand-gold/60 text-[10px] font-black uppercase hover:text-brand-gold transition-colors tracking-[0.4em]">FORGOT?</button>}
-                </div>
-                <input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="w-full p-6 bg-black/40 border border-white/5 rounded-2xl text-brand-text focus:outline-none focus:ring-1 focus:ring-brand-gold/40 transition-all font-light text-lg" />
-              </div>
-            )}
-            {isRegistering && (
-               <div className="group">
-                <label className="block text-[10px] font-black text-brand-muted mb-4 uppercase tracking-[0.5em]">CONFIRM PASSWORD</label>
-                <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required className="w-full p-6 bg-black/40 border border-white/5 rounded-2xl text-brand-text focus:outline-none focus:ring-1 focus:ring-brand-gold/40 transition-all font-light text-lg" />
-              </div>
-            )}
-            
-            {isRegistering && (
-              <div className="flex items-start gap-4">
-                <input 
-                  type="checkbox" 
-                  required 
-                  className="mt-1 w-4 h-4 bg-black/40 border border-white/10 rounded cursor-pointer accent-brand-gold flex-shrink-0" 
-                />
-                <div className="text-[10px] font-black text-brand-muted uppercase tracking-[0.3em] leading-relaxed text-left">
-                  <p>I understand that I must sign up and log in using the same email used to purchase this app. Access may be delayed or removed if emails do not match.</p>
-                  <p className="mt-2 text-brand-gold">PLEASE CONFIRM TO CONTINUE.</p>
-                </div>
-              </div>
-            )}
-            
+
             {error && <p className="text-red-500 text-[11px] font-black uppercase text-center tracking-[0.3em]">{error}</p>}
-            {resetSent && <p className="text-brand-gold text-[11px] font-black uppercase text-center tracking-[0.3em] leading-relaxed">If this email is registered, a reset link is on its way. Check your inbox and spam folder, and be sure to use the email you signed up with.</p>}
-            
-            <button type="submit" disabled={loading} className="w-full py-8 bg-brand-gold text-black font-black rounded-3xl hover:bg-white transition-all duration-700 uppercase tracking-[0.8em] text-[12px] shadow-[0_20px_40px_rgba(177,148,108,0.2)]">
-              {loading ? "ESTABLISHING..." : (isForgotPassword ? "RESET" : (isRegistering ? "REGISTER" : "ENTER"))}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-8 bg-brand-gold text-black font-black rounded-3xl hover:bg-white transition-all duration-700 uppercase tracking-[0.8em] text-[12px] shadow-[0_20px_40px_rgba(177,148,108,0.2)] disabled:opacity-60"
+            >
+              {loading ? "ESTABLISHING..." : "ENTER"}
             </button>
-            
-            <div className="text-center pt-8 border-t border-white/10">
-               <button type="button" onClick={() => { if (isRegistering || isForgotPassword) { setIsRegistering(false); setIsForgotPassword(false); } else { setIsRegistering(true); } setResetSent(false); setError(null); }} className={`font-black uppercase transition-colors ${isRegistering || isForgotPassword ? "text-white/30 hover:text-brand-gold text-[10px] tracking-[0.6em]" : "text-brand-gold/80 hover:text-brand-gold text-[13px] tracking-[0.3em] underline underline-offset-4 decoration-brand-gold/40 hover:decoration-brand-gold"}`}>
-                  {isRegistering || isForgotPassword ? "RETURN TO LOGIN" : "NEW HERE? REGISTER YOUR TWIN"}
-               </button>
-            </div>
           </form>
         </div>
       </div>
